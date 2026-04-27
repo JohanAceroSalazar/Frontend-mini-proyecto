@@ -1,0 +1,8 @@
+services:
+  frontend:
+    build: .
+    container_name: frontend_mini_proyecto
+    ports:
+      - "5500:5500"
+    environment:
+      PORT: 5500
