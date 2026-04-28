@@ -1,0 +1,72 @@
+name: Frontend CI
+
+on:
+  # Permite ejecutarlo manualmente desde GitHub.
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "server.js"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".github/workflows/frontend-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "server.js"
+      - "Dockerfile"
+      - "docker-compose.yml"
+      - ".github/workflows/frontend-ci.yml"
+
+jobs:
+  frontend:
+    # Valida sintaxis, construye la imagen Docker y prueba que el frontend responda.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Revisa que los archivos JavaScript no tengan errores de sintaxis.
+      - name: Check JavaScript syntax
+        run: |
+          node --check server.js
+          node --check src/index.js
+          node --check src/App.js
+          node --check src/services/api.js
+          node --check src/components/FormRenderer.js
+          node --check src/components/TableRender.js
+          node --check src/pages/CrudPage.js
+
+      # Valida que Docker Compose pueda leer la configuracion.
+      - name: Validate docker-compose
+        run: docker compose config
+
+      # Construye la imagen del frontend para detectar errores del Dockerfile.
+      - name: Build Docker image
+        run: docker build -t mini-proyecto-frontend-check .
+
+      # Arranca el servidor estatico del frontend.
+      - name: Start frontend
+        run: |
+          node server.js > frontend.log 2>&1 &
+          echo $! > frontend.pid
+
+      # Espera a que el frontend responda en el puerto real del proyecto.
+      - name: Test frontend
+        run: |
+          for i in {1..30}; do
+            if curl -fsS http://localhost:5500 > /tmp/frontend.html; then exit 0; fi
+            sleep 2
+          done
+          cat frontend.log
+          exit 1
